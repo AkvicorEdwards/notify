@@ -230,15 +230,15 @@ func Send(C *Con) {
 }
 
 func SendMsg(uid string, msg []byte) {
+	var buff bytes.Buffer
+	buff.Write([]byte{Notify, '#'})
+	buff.Write(msg)
+	fmt.Println(uid, "MSG", buff.String())
 	C, ok := ConnMap[uid]
 	if !ok {
 		return
 	}
-	var buff bytes.Buffer
-	buff.Write([]byte{Notify, '#'})
-	buff.Write(msg)
 	C.Wch <- buff.Bytes()
-	fmt.Println(uid, "MSG", buff.String())
 }
 
 func Close(C *Con) {
