@@ -93,12 +93,20 @@ func NewCon(uid string, con net.Conn) *Con {
 
 var ConnMap map[string]*Con
 
+var disconnected = make(chan bool)
+
 // [ip] [port] [uid]
 func main() {
 	ConnMap = make(map[string]*Con)
-	go Server(fmt.Sprintf("%s:%s", os.Args[1], os.Args[2]), os.Args[3]) // ip port uid
+	for {
+		go Server(fmt.Sprintf("%s:%s", os.Args[1], os.Args[2]), os.Args[3]) // ip port uid
 
-	select {
+		select {
+		case <-disconnected:
+			go shell.Exec(fmt.Sprint(`notify-send -t 0 "Notify" "Disconnected\nRetry after 7 seconds"`))
+			time.Sleep(7*time.Second)
+		}
+
 	}
 }
 
@@ -142,6 +150,7 @@ func Server(address string, uid string) {
 
 	ConnMap[uid] = NewCon(uid, conn)
 	fmt.Println("Server Connected")
+	go shell.Exec(fmt.Sprint(`notify-send -t 0 "Notify" "Server Connected"`))
 
 	go Close(ConnMap[uid])
 	go Send(ConnMap[uid])
@@ -257,6 +266,7 @@ func Close(C *Con) {
 		if closed == 4 {
 			_ = C.Conn.Close()
 			C.Close["server"] <- true
+			disconnected <- true
 			return
 		}
 	}
