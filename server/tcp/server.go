@@ -80,9 +80,11 @@ func NewCon(uid string, con net.Conn) *Con {
 
 var ConnMap map[string]*Con
 
-func ListenTCP(ip string, port int) {
+func ListenTCP(port string) {
 	ConnMap = make(map[string]*Con)
-	listen, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(ip), Port: port})
+	//listen, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(ip), Port: port})
+	tcpAddr, _ := net.ResolveTCPAddr("tcp", port)
+	listen, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
 		fmt.Println("监听端口失败:", err.Error())
 		return

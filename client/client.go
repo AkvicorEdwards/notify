@@ -108,9 +108,11 @@ func Server(address string, uid string) {
 		fmt.Println("uid exist")
 		return
 	}
-	addr, err := net.ResolveTCPAddr("tcp", address)
-	conn, err := net.DialTCP("tcp", nil, addr)
-	//	conn, err := net.Dial("tcp", address)
+	//addr, err := net.ResolveTCPAddr("tcp", address)
+	//conn, err := net.DialTCP("tcp", nil, addr)
+	////conn, err := net.Dial("tcp", address)
+	tcpAddr, _ := net.ResolveTCPAddr("tcp", address)
+	conn, err := net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
 		fmt.Println("连接服务端失败:", err.Error())
 		return

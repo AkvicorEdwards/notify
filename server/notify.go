@@ -6,11 +6,10 @@ import (
 	"notify/handler"
 	"notify/tcp"
 	"os"
-	"strconv"
 	"time"
 )
 
-// [Web port] [tcp port] [uid]
+// [:Web port] [:tcp port] [uid]
 
 func main() {
 	handler.ParsePrefix()
@@ -20,14 +19,8 @@ func main() {
 		ReadTimeout:    1 * time.Minute,
 		MaxHeaderBytes: 8<<20,
 	}
-	p, err := strconv.Atoi(os.Args[2])
-	if err != nil {
-		// handle error
-		fmt.Println(err)
-		return
-	}
-	fmt.Println("ListenAndServe:", os.Args[1], "TCP:", p)
-	tcp.ListenTCP("127.0.0.1", p)
+	fmt.Println("ListenAndServe:", os.Args[1], "TCP:", os.Args[2])
+	tcp.ListenTCP(os.Args[2])
 	if err := server.ListenAndServe(); err != nil {
 		panic(err)
 	}
