@@ -35,6 +35,8 @@ func getAppName(app string) string {
 		return "QQ"
 	case "com.tencent.tim":
 		return "TIM"
+	case "com.microsoft.todos":
+		return "TODO"
 	case "com.google.android.gm":
 		return "Gmail"
 	default:
