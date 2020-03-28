@@ -22,13 +22,13 @@ func ListenTCP(address string, uid string) {
 func Server(address string, uid string) {
 	_, ok := ConnMap[uid]
 	if ok {
-		fmt.Println("uid exist")
+		fmt.Println("UID exist")
 		return
 	}
 	tcpAddr, _ := net.ResolveTCPAddr("tcp", address)
 	conn, err := net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
-		fmt.Println("连接服务端失败:", err.Error())
+		fmt.Println(now(), "连接服务端失败:", err.Error())
 		return
 	}
 	data := make([]byte, 128)
@@ -52,7 +52,7 @@ func Server(address string, uid string) {
 	}
 
 	ConnMap[uid] = NewCon(uid, conn)
-	fmt.Println("Server Connected")
+	fmt.Println("Server Connected", now())
 	go shell.Exec(fmt.Sprint(`notify-send -t 0 "Notify" "Connected"`))
 
 	go Close(ConnMap[uid])
@@ -65,7 +65,7 @@ func Server(address string, uid string) {
 
 	select {
 	case <- ConnMap[uid].Close["server"]:
-		fmt.Println("Close Server", ConnMap[uid].User)
+		fmt.Println("Close Server", ConnMap[uid].User, now())
 		delete(ConnMap, ConnMap[uid].User)
 		return
 	}
@@ -93,6 +93,7 @@ func Notice(C *Con) {
 		case d := <-C.Nty:
 			data := &MSG{}
 			_ = json.Unmarshal(d, data)
+			fmt.Println(C.User, now(), string(d))
 			go shell.Exec(fmt.Sprintf(`notify-send -t 0 "%s - %s" "%s\n"`, data.App, data.Title, data.Msg))
 		}
 	}

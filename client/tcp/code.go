@@ -28,5 +28,5 @@ const (
 	// Notify Response
 	ResNotify byte = 21
 
-	MaxMessageLength int = 4 * 200
+	MaxMessageLength int = 4 * 800
 )

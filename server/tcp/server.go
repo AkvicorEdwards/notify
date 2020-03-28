@@ -9,7 +9,6 @@ import (
 var ConnMap map[string]*Con = make(map[string]*Con)
 
 func ListenTCP(port string) {
-	fmt.Printf("ListenTCP:%s at:%s\n", port, now())
 	tcpAddr, _ := net.ResolveTCPAddr("tcp", port)
 	listen, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
@@ -49,7 +48,7 @@ func Server(conn net.Conn) {
 				return
 			} else {
 				ConnMap[uid] = NewCon(uid, conn)
-				fmt.Printf("客户端注册成功: %s\n", uid)
+				fmt.Printf("客户端注册成功: %s %s\n", uid, now())
 				_, _ = conn.Write(WrapCode(ResRegistrationSuccessful))
 				break
 			}
@@ -191,7 +190,7 @@ func Close(C *Con) {
 			//fmt.Println(C.User, "Listener Close")
 		}
 		if closed == 5 {
-			fmt.Println(C.User, "Down, All Closed")
+			fmt.Println(C.User, "Down, All Closed", now())
 			_ = C.Conn.Close()
 			delete(ConnMap, C.User)
 			return
