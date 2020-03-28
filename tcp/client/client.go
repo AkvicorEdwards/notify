@@ -1,8 +1,10 @@
 package main
 
+
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -21,8 +23,16 @@ const (
 	ResRegistrationFailureUserExist byte = 7
 	ResRegistrationSuccessful       byte = 8
 
+	Notify							byte = 20
+
 	MaxMessageLength				int  = 4*200
 )
+
+type MSG struct {
+	App string `json:"app"`
+	Title string `json:"title"`
+	Msg string `json:"msg"`
+}
 
 type Con struct {
 	Conn net.Conn
@@ -32,6 +42,9 @@ type Con struct {
 
 	// Send Data
 	Wch  chan []byte
+
+	// Notify
+	Nty chan []byte
 
 	// Send a heartbeat but not respond
 	Heart bool
@@ -59,6 +72,7 @@ func NewCon(uid string, con net.Conn) *Con {
 		Conn: con,
 		Rch:  make(chan []byte),
 		Wch:  make(chan []byte),
+		Nty:  make(chan []byte),
 		Heart: false,
 		RHch: make(chan bool),
 		WHch: make(chan bool),
@@ -71,16 +85,26 @@ func NewCon(uid string, con net.Conn) *Con {
 			"heartbeat": make(chan bool),
 			"listener": make(chan bool),
 			"send": make(chan bool),
+			"notice": make(chan bool),
 		},
 	}
 }
 
 var ConnMap map[string]*Con
 
+var disconnected = make(chan bool)
+
+// [ip] [port] [uid]
 func main() {
 	ConnMap = make(map[string]*Con)
-	go Server("127.0.0.1:6666", os.Args[1])
-	select {
+	for {
+		go Server(fmt.Sprintf("%s:%s", os.Args[1], os.Args[2]), os.Args[3]) // ip port uid
+
+		select {
+		case <-disconnected:
+			fmt.Println("Notify Disconnected Retry after 7 seconds")
+			time.Sleep(7*time.Second)
+		}
 
 	}
 }
@@ -89,13 +113,14 @@ func Server(address string, uid string) {
 	_, ok := ConnMap[uid]
 	if ok {
 		fmt.Println("uid exist")
+		disconnected <- true
 		return
 	}
-	addr, err := net.ResolveTCPAddr("tcp", address)
-	conn, err := net.DialTCP("tcp", nil, addr)
-	//	conn, err := net.Dial("tcp", address)
+	tcpAddr, _ := net.ResolveTCPAddr("tcp", address)
+	conn, err := net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
 		fmt.Println("连接服务端失败:", err.Error())
+		disconnected <- true
 		return
 	}
 	data := make([]byte, 128)
@@ -109,6 +134,7 @@ func Server(address string, uid string) {
 		if err != nil {
 			fmt.Println("Connection Error")
 			_=conn.Close()
+			disconnected <- true
 			return
 		}
 		if data[0] == ResRegistrationSuccessful {
@@ -117,19 +143,21 @@ func Server(address string, uid string) {
 		} else if data[0] == ResRegistrationFailureUserExist {
 			fmt.Println("User already Connected")
 			_=conn.Close()
+			disconnected <- true
 			return
 		}
 	}
 
 	ConnMap[uid] = NewCon(uid, conn)
-	fmt.Println("Server Connected")
+	fmt.Println("Connected")
 
 	go Close(ConnMap[uid])
 	go Send(ConnMap[uid])
 	go Receive(ConnMap[uid])
+	go Notice(ConnMap[uid])
 	go Listener(ConnMap[uid])
 	//go Work(ConnMap[uid])
-	go TSend(ConnMap[uid])
+	//go TSend(ConnMap[uid])
 
 	select {
 	case <- ConnMap[uid].Close["server"]:
@@ -150,6 +178,21 @@ func Send(C *Con) {
 			_,_=C.Conn.Write(d)
 		}
 	}
+}
+
+func Notice(C *Con) {
+	for {
+		select {
+		case <-C.Close["notice"]:
+			C.Close["notice"] <- true
+			return
+		case d := <-C.Nty:
+			data := &MSG{}
+			_=json.Unmarshal(d, data)
+			fmt.Println(data)
+		}
+	}
+
 }
 
 func Receive(C *Con) {
@@ -179,17 +222,19 @@ func Listener(C *Con) {
 			fmt.Println(err)
 			continue
 		}
-		_, err = C.Conn.Read(data)
+		n, err := C.Conn.Read(data)
 		if err != nil {
 			C.Listener = true
 			C.Dch <- true
 			continue
 		}
 		switch data[0] {
+		case Notify:
+			C.Nty <- data[2:n]
 		case ReqHEARTBEAT:
 			C.RHch <- true
 		case Req:
-			C.Rch <- data[2:]
+			C.Rch <- data[2:n]
 		}
 	}
 }
@@ -199,6 +244,7 @@ func Close(C *Con) {
 	case <-C.Dch:
 		C.Close["receive"] <- true
 		C.Close["send"] <- true
+		C.Close["notice"] <- true
 	}
 	closed := 0
 	for {
@@ -212,10 +258,14 @@ func Close(C *Con) {
 		case <-C.Close["listener"]:
 			closed++
 			//fmt.Println(C.User, "Listener Close")
+		case <-C.Close["notice"]:
+			closed++
+			//fmt.Println(C.User, "Notice Close")
 		}
-		if closed == 3 {
+		if closed == 4 {
 			_ = C.Conn.Close()
 			C.Close["server"] <- true
+			disconnected <- true
 			return
 		}
 	}

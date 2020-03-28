@@ -21,8 +21,11 @@ const (
 	ResRegistrationFailureUserExist byte = 7
 	ResRegistrationSuccessful       byte = 8
 
+	Notify							byte = 20
+
 	MaxMessageLength				int  = 4*200
 )
+
 
 type Con struct {
 	Conn net.Conn
@@ -77,14 +80,10 @@ func NewCon(uid string, con net.Conn) *Con {
 
 var ConnMap map[string]*Con
 
-const (
-	TempIp   = "127.0.0.1"
-	TempPort = 6666
-)
-
-func main() {
+func ListenTCP(port string) {
 	ConnMap = make(map[string]*Con)
-	listen, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(TempIp), Port: TempPort})
+	tcpAddr, _ := net.ResolveTCPAddr("tcp", port)
+	listen, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
 		fmt.Println("监听端口失败:", err.Error())
 		return
@@ -92,7 +91,6 @@ func main() {
 	fmt.Println("已初始化连接，等待客户端连接...")
 
 	go Server(listen)
-	select {}
 }
 
 func Server(listen *net.TCPListener) {
@@ -110,24 +108,22 @@ func Server(listen *net.TCPListener) {
 func Handler(conn net.Conn) {
 	var (
 		uid  string
-		C    *Con
 		data = make([]byte, 128)
 	)
 	for {
-		_, err := conn.Read(data)
+		n, err := conn.Read(data)
 		if err != nil {
 			_=conn.Close()
 			return
 		}
 		if data[0] == ReqRegister {
-			uid = string(data[2:])
+			uid = string(data[2:n])
 			if _, ok := ConnMap[uid]; ok {
 				_, _ = conn.Write([]byte{ResRegistrationFailureUserExist, '#'})
 				_=conn.Close()
 				return
 			} else {
-				C = NewCon(uid, conn)
-				ConnMap[uid] = C
+				ConnMap[uid] = NewCon(uid, conn)
 				fmt.Printf("Register Client: %s\n", uid)
 				_, _ = conn.Write([]byte{ResRegistrationSuccessful, '#'})
 				break
@@ -139,17 +135,17 @@ func Handler(conn net.Conn) {
 			return
 		}
 	}
-	go Close(C)
-	go Send(C)
-	go Receive(C)
-	go Heartbeat(C)
-	go Listener(C)
+	go Close(ConnMap[uid])
+	go Send(ConnMap[uid])
+	go Receive(ConnMap[uid])
+	go Heartbeat(ConnMap[uid])
+	go Listener(ConnMap[uid])
 	//go Work(C)
-	go TSend(ConnMap[uid])
+	//go TSend(ConnMap[uid])
 
 	select {
-	case <- C.Close["handler"]:
-		C.Close["handler"] <- true
+	case <- ConnMap[uid].Close["handler"]:
+		ConnMap[uid].Close["handler"] <- true
 		return
 	}
 }
@@ -200,7 +196,7 @@ func Listener(C *Con) {
 			fmt.Println(err)
 			continue
 		}
-		_, err = C.Conn.Read(data)
+		n, err := C.Conn.Read(data)
 		if err != nil {
 			if C.Heart {
 				continue
@@ -214,7 +210,7 @@ func Listener(C *Con) {
 		case ResHEARTBEAT:
 			C.RHch <- true
 		case Req:
-			C.Rch <- data[2:]
+			C.Rch <- data[2:n]
 		}
 	}
 }
@@ -230,6 +226,18 @@ func Send(C *Con) {
 			_,_=C.Conn.Write(d)
 		}
 	}
+}
+
+func SendMsg(uid string, msg []byte) {
+	var buff bytes.Buffer
+	buff.Write([]byte{Notify, '#'})
+	buff.Write(msg)
+	fmt.Println(uid, "MSG", buff.String())
+	C, ok := ConnMap[uid]
+	if !ok {
+		return
+	}
+	C.Wch <- buff.Bytes()
 }
 
 func Close(C *Con) {

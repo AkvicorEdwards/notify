@@ -20,9 +20,6 @@ func Msg(w http.ResponseWriter, r *http.Request) {
 		Title: getAppName(filter(r.FormValue("app"))),
 		Msg:   filter(r.FormValue("msg")),
 	}
-	//title := filter(r.FormValue("title"))
-	//app := getAppName(filter(r.FormValue("app")))
-	//msg := filter(r.FormValue("msg"))
 	data, err := json.Marshal(Msg)
 	if err != nil {
 		fmt.Println(err)

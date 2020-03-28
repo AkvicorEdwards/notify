@@ -1,88 +1,15 @@
 package tcp
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"net"
-	"os"
-	"strings"
 	"time"
 )
 
-const (
-	Err                             byte = 0
-	Req                             byte = 1
-	Res                             byte = 2
-	ReqHEARTBEAT                    byte = 3
-	ResHEARTBEAT                    byte = 4
-	ReqRegister                     byte = 5
-	ResRegistrationFailure          byte = 6
-	ResRegistrationFailureUserExist byte = 7
-	ResRegistrationSuccessful       byte = 8
-
-	Notify							byte = 20
-
-	MaxMessageLength				int  = 4*200
-)
-
-
-type Con struct {
-	Conn net.Conn
-
-	// Received Data
-	Rch  chan []byte
-
-	// Send Data
-	Wch  chan []byte
-
-	// Send a heartbeat but not respond
-	Heart bool
-
-	// Received a heartbeat
-	RHch chan bool
-
-	// Send a heartbeat
-	WHch chan bool
-
-	// Down signal
-	Dch  chan bool
-
-	// Client username
-	User string
-
-	// For Close goroutine
-	Listener bool
-	// goroutine already closed?
-	Close map[string]chan bool
-}
-
-func NewCon(uid string, con net.Conn) *Con {
-	return &Con{
-		Conn: con,
-		Rch:  make(chan []byte),
-		Wch:  make(chan []byte),
-		Heart: false,
-		RHch: make(chan bool),
-		WHch: make(chan bool),
-		Dch: make(chan bool),
-		User: uid,
-		Listener: false,
-		Close: map[string]chan bool{
-			"handler": make(chan bool),
-			"receive": make(chan bool),
-			"heartbeat": make(chan bool),
-			"listener": make(chan bool),
-			"send": make(chan bool),
-		},
-	}
-}
-
-var ConnMap map[string]*Con
+var ConnMap map[string]*Con = make(map[string]*Con)
 
 func ListenTCP(port string) {
-	ConnMap = make(map[string]*Con)
-	//listen, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(ip), Port: port})
+	fmt.Printf("ListenTCP:%s at:%s\n", port, now())
 	tcpAddr, _ := net.ResolveTCPAddr("tcp", port)
 	listen, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
@@ -91,10 +18,6 @@ func ListenTCP(port string) {
 	}
 	fmt.Println("已初始化连接，等待客户端连接...")
 
-	go Server(listen)
-}
-
-func Server(listen *net.TCPListener) {
 	for {
 		conn, err := listen.AcceptTCP()
 		if err != nil {
@@ -102,11 +25,11 @@ func Server(listen *net.TCPListener) {
 			continue
 		}
 		fmt.Println("客户端连接来自:", conn.RemoteAddr().String())
-		go Handler(conn)
+		go Server(conn)
 	}
 }
 
-func Handler(conn net.Conn) {
+func Server(conn net.Conn) {
 	var (
 		uid  string
 		data = make([]byte, 128)
@@ -114,28 +37,30 @@ func Handler(conn net.Conn) {
 	for {
 		n, err := conn.Read(data)
 		if err != nil {
-			_=conn.Close()
+			fmt.Println("获取注册数据异常:", err.Error())
+			_ = conn.Close()
 			return
 		}
 		if data[0] == ReqRegister {
 			uid = string(data[2:n])
 			if _, ok := ConnMap[uid]; ok {
-				_, _ = conn.Write([]byte{ResRegistrationFailureUserExist, '#'})
-				_=conn.Close()
+				_, _ = conn.Write(WrapCode(ResRegistrationFailureUserExist))
+				_ = conn.Close()
 				return
 			} else {
 				ConnMap[uid] = NewCon(uid, conn)
-				fmt.Printf("Register Client: %s\n", uid)
-				_, _ = conn.Write([]byte{ResRegistrationSuccessful, '#'})
+				fmt.Printf("客户端注册成功: %s\n", uid)
+				_, _ = conn.Write(WrapCode(ResRegistrationSuccessful))
 				break
 			}
 		} else {
-			fmt.Println("ERR")
-			_, _ = conn.Write([]byte{Err, '#'})
-			_=conn.Close()
+			fmt.Println("客户端未发送注册请求")
+			_, _ = conn.Write(WrapCode(ResRegistrationFailure))
+			_ = conn.Close()
 			return
 		}
 	}
+
 	go Close(ConnMap[uid])
 	go Send(ConnMap[uid])
 	go Receive(ConnMap[uid])
@@ -145,45 +70,11 @@ func Handler(conn net.Conn) {
 	go TSend(ConnMap[uid])
 
 	select {
-	case <- ConnMap[uid].Close["handler"]:
-		ConnMap[uid].Close["handler"] <- true
+	case <- ConnMap[uid].Close["server"]:
+		ConnMap[uid].Close["server"] <- true
 		return
 	}
 }
-
-func Receive(C *Con) {
-	for {
-		select {
-		case <-C.Close["receive"]:
-			C.Close["receive"] <- true
-			return
-		case d := <-C.Rch:
-			fmt.Println(C.User, "Receive:", string(d))
-		}
-	}
-}
-
-func Heartbeat(C *Con) {
-	for {
-		select {
-		case <-C.Close["heartbeat"]:
-			C.Close["heartbeat"] <- true
-			return
-		case <-C.WHch:
-			//fmt.Println(C.User, "Heart Beat Sent")
-			ticker := time.NewTicker(5 * time.Second)
-			select {
-			case <-ticker.C:
-				//fmt.Println(C.User, "Down signal sent")
-				C.Dch <- true
-			case <-C.RHch:
-				C.Heart = false
-				//fmt.Println(C.User, "Heart Beat OK")
-			}
-		}
-	}
-}
-
 
 func Listener(C *Con) {
 	for {
@@ -202,16 +93,41 @@ func Listener(C *Con) {
 			if C.Heart {
 				continue
 			}
+			// 发送心跳请求
 			C.WHch <- true
-			C.Wch <- []byte{ReqHEARTBEAT, '#'}
+			// 防止二次发送心跳
 			C.Heart = true
 			continue
 		}
 		switch data[0] {
-		case ResHEARTBEAT:
+		case ResHeartbeat:
 			C.RHch <- true
-		case Req:
+		case ReqMessage:
 			C.Rch <- data[2:n]
+		}
+	}
+}
+
+func Heartbeat(C *Con) {
+	for {
+		// 等待心跳请求
+		select {
+		case <-C.Close["heartbeat"]:
+			C.Close["heartbeat"] <- true
+			return
+		case <-C.WHch:
+			// 发送心跳请求，等待响应
+			C.Wch <- WrapCode(ReqHeartbeat)
+			//fmt.Println(C.User, "Heart Beat Sent")
+			ticker := time.NewTicker(5 * time.Second)
+			select {
+			case <-ticker.C:
+				C.Dch <- true
+				//fmt.Println(C.User, "Down signal sent")
+			case <-C.RHch:
+				C.Heart = false
+				//fmt.Println(C.User, "Heart Beat OK")
+			}
 		}
 	}
 }
@@ -224,38 +140,43 @@ func Send(C *Con) {
 			return
 		case d := <-C.Wch:
 			//fmt.Println(C.User, "Send:", d[0], string(d[2:]))
-			_,_=C.Conn.Write(d)
+			_, _ = C.Conn.Write(d)
 		}
 	}
 }
 
-func SendMsg(uid string, msg []byte) {
-	var buff bytes.Buffer
-	buff.Write([]byte{Notify, '#'})
-	buff.Write(msg)
-	fmt.Println(uid, "MSG", buff.String())
-	C, ok := ConnMap[uid]
-	if !ok {
-		return
+func Receive(C *Con) {
+	for {
+		select {
+		case <-C.Close["receive"]:
+			C.Close["receive"] <- true
+			return
+		case d := <-C.Rch:
+			fmt.Println(C.User, "Receive:", string(d))
+		}
 	}
-	C.Wch <- buff.Bytes()
 }
 
 func Close(C *Con) {
 	select {
 	case <-C.Dch:
+		//fmt.Println("Down Signal")
 		C.Listener = true
+		//fmt.Println("1")
 		C.Close["heartbeat"] <- true
+		//fmt.Println("2")
 		C.Close["receive"] <- true
-		C.Close["handler"] <- true
+		//fmt.Println("3")
+		C.Close["server"] <- true
+		//fmt.Println("4")
 		C.Close["send"] <- true
 	}
 	closed := 0
 	for {
 		select {
-		case <-C.Close["handler"]:
+		case <-C.Close["server"]:
 			closed++
-			//fmt.Println(C.User, "Handler Close")
+			//fmt.Println(C.User, "Server Close")
 		case <-C.Close["receive"]:
 			closed++
 			//fmt.Println(C.User, "Receive Close")
@@ -275,35 +196,5 @@ func Close(C *Con) {
 			delete(ConnMap, C.User)
 			return
 		}
-	}
-}
-
-func Work(C *Con) {
-	time.Sleep(3 * time.Second)
-	fmt.Println("Push MSG: hello")
-	C.Wch <- []byte{Req, '#', 'h', 'e', 'l', 'l', 'o'}
-
-
-	time.Sleep(20 * time.Second)
-	fmt.Println("Push MSG: world")
-	C.Wch <- []byte{Req, '#', 'w', 'o', 'r', 'l', 'd'}
-}
-
-func TSend(C *Con) {
-	for {
-		choice, err := bufio.NewReader(os.Stdin).ReadString('\n')
-		if err != nil {
-			fmt.Println("Illegal Input")
-			continue
-		}
-		choice = strings.TrimSpace(choice)
-		if choice == "quit" {
-			C.Dch <- true
-			return
-		}
-		var buff bytes.Buffer
-		buff.Write([]byte{Req, '#'})
-		buff.Write([]byte(choice))
-		C.Wch <- buff.Bytes()
 	}
 }
