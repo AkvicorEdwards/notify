@@ -19,8 +19,8 @@ func main() {
 		ReadTimeout:    1 * time.Minute,
 		MaxHeaderBytes: 8<<20,
 	}
+	go tcp.ListenTCP(os.Args[2])
 	fmt.Println("ListenAndServe:", os.Args[1], "TCP:", os.Args[2])
-	tcp.ListenTCP(os.Args[2])
 	//if err := server.ListenAndServe(); err != nil {
 	//	panic(err)
 	//}
