@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"notify/tcp"
-	"os"
 )
 
 type MSG struct {
@@ -14,7 +13,9 @@ type MSG struct {
 	Msg string `json:"msg"`
 }
 
-func Msg(w http.ResponseWriter, r *http.Request) {
+func Notify(w http.ResponseWriter, r *http.Request) {
+	uid := r.FormValue("uid")
+	key := r.FormValue("key")
 	Msg := MSG{
 		App:   filter(r.FormValue("title")),
 		Title: getAppName(filter(r.FormValue("app"))),
@@ -24,7 +25,7 @@ func Msg(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	tcp.SendMsg(os.Args[3], data)
+	tcp.SendMsg(uid, key, "Notify", tcp.ReqNotify, data)
 }
 
 func getAppName(app string) string {
@@ -52,6 +53,14 @@ func filter(msg string) string {
 		return "TITLE"
 	case "%evtprm3":
 		return "MSG"
+	case "%evtprm4":
+		return "EvtPrm4"
+	case "%evtprm5":
+		return "EvtPrm5"
+	case "%evtprm6":
+		return "EvtPrm6"
+	case "%evtprm7":
+		return "EvtPrm7"
 	default:
 		return msg
 	}

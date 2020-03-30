@@ -16,12 +16,16 @@ const (
 
 	// Registration request
 	ReqRegister byte = 5
+	ResRegister byte = 7
 	// Registration Failure
-	ResRegistrationFailure byte = 6
+	ResRegistrationFailure byte = 8
 	// Registration Failure User Exist
-	ResRegistrationFailureUserExist byte = 7
+	ResRegistrationFailureUserExist byte = 9
 	// Registration Successful
-	ResRegistrationSuccessful byte = 8
+	ResRegistrationSuccessful byte = 10
+
+	ReqKey byte = 11
+	ResKey byte = 12
 
 	// Notify Request
 	ReqNotify byte = 20

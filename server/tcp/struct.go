@@ -26,13 +26,14 @@ type Con struct {
 	// Client username
 	User string
 
-	// For Close goroutine
-	Listener bool
+	Key string
+
+	Down bool
 	// goroutine already closed?
 	Close map[string]chan bool
 }
 
-func NewCon(uid string, con net.Conn) *Con {
+func NewCon(uid string, key string, con net.Conn) *Con {
 	return &Con{
 		Conn: con,
 		Rch:  make(chan []byte),
@@ -42,7 +43,8 @@ func NewCon(uid string, con net.Conn) *Con {
 		WHch: make(chan bool),
 		Dch: make(chan bool),
 		User: uid,
-		Listener: false,
+		Key: key,
+		Down: false,
 		Close: map[string]chan bool{
 			"server": make(chan bool),
 			"receive": make(chan bool),

@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-var ConnMap map[string]*Con = make(map[string]*Con)
+var ConnMap = make(map[string]*Con)
 
 func ListenTCP(port string) {
 	tcpAddr, _ := net.ResolveTCPAddr("tcp", port)
@@ -15,6 +15,7 @@ func ListenTCP(port string) {
 		fmt.Println("监听端口失败:", err.Error())
 		return
 	}
+
 	fmt.Println("已初始化连接，等待客户端连接...")
 
 	for {
@@ -31,6 +32,7 @@ func ListenTCP(port string) {
 func Server(conn net.Conn) {
 	var (
 		uid  string
+		key string
 		data = make([]byte, 128)
 	)
 	for {
@@ -47,9 +49,23 @@ func Server(conn net.Conn) {
 				_ = conn.Close()
 				return
 			} else {
-				ConnMap[uid] = NewCon(uid, conn)
-				fmt.Printf("客户端注册成功: %s %s\n", uid, now())
-				_, _ = conn.Write(WrapCode(ResRegistrationSuccessful))
+				_, _ = conn.Write(WrapCodeString(ResRegister, key).Bytes())
+				n, err := conn.Read(data)
+				if err != nil {
+					fmt.Println("获取Key异常:", err.Error())
+					_ = conn.Close()
+					return
+				}
+				if data[0] == ReqKey {
+					key = string(data[2:n])
+					ConnMap[uid] = NewCon(uid, key, conn)
+					fmt.Printf("客户端注册成功: %s %s %s\n", uid, key, now())
+					_, _ = conn.Write(WrapCode(ResRegistrationSuccessful))
+				} else {
+					fmt.Println("未获取到Key")
+					_ = conn.Close()
+					return
+				}
 				break
 			}
 		} else {
@@ -65,8 +81,7 @@ func Server(conn net.Conn) {
 	go Receive(ConnMap[uid])
 	go Heartbeat(ConnMap[uid])
 	go Listener(ConnMap[uid])
-	//go Work(C)
-	go TSend(ConnMap[uid])
+	//go WorkTest(C)
 
 	select {
 	case <- ConnMap[uid].Close["server"]:
@@ -77,7 +92,7 @@ func Server(conn net.Conn) {
 
 func Listener(C *Con) {
 	for {
-		if C.Listener {
+		if C.Down {
 			C.Close["listener"] <- true
 			return
 		}
@@ -160,7 +175,7 @@ func Close(C *Con) {
 	select {
 	case <-C.Dch:
 		//fmt.Println("Down Signal")
-		C.Listener = true
+		C.Down = true
 		//fmt.Println("1")
 		C.Close["heartbeat"] <- true
 		//fmt.Println("2")

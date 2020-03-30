@@ -11,15 +11,15 @@ import (
 var ConnMap map[string]*Con = make(map[string]*Con)
 
 // [ip] [port] [uid]
-func ListenTCP(address string, uid string) {
+func ListenTCP(address string, uid string, key string) {
 	for {
-		Server(address, uid)
+		Server(address, uid, key)
 		go shell.Exec(fmt.Sprint(`notify-send -t 0 "Notify" "Disconnected\nRetry after 7 seconds"`))
 		time.Sleep(7*time.Second)
 	}
 }
 
-func Server(address string, uid string) {
+func Server(address string, uid string, key string) {
 	_, ok := ConnMap[uid]
 	if ok {
 		fmt.Println("UID exist")
@@ -34,24 +34,31 @@ func Server(address string, uid string) {
 	data := make([]byte, 128)
 
 	for {
-		_,_=conn.Write(WrapCodeString(ReqRegister, uid).Bytes())
+		_, _ = conn.Write(WrapCodeString(ReqRegister, uid).Bytes())
 		_,err=conn.Read(data)
 		if err != nil {
 			fmt.Println("Connection Error")
 			_ = conn.Close()
 			return
 		}
-		if data[0] == ResRegistrationSuccessful {
-			fmt.Println("Registration Successful")
-			break
+		if data[0] == ResRegister {
+			_, _ = conn.Write(WrapCodeString(ReqKey, key).Bytes())
+			_,err=conn.Read(data)
+			if data[0] == ResRegistrationSuccessful {
+				fmt.Println("Registration Successful")
+				break
+			}
+			fmt.Println("Pass")
 		} else if data[0] == ResRegistrationFailureUserExist {
 			fmt.Println("User already Connected")
 			_ = conn.Close()
 			return
+		} else if data[0] == ResRegistrationFailure{
+			fmt.Println("未发送注册请求")
 		}
 	}
 
-	ConnMap[uid] = NewCon(uid, conn)
+	ConnMap[uid] = NewCon(uid, key, conn)
 	fmt.Println("Server Connected", now())
 	go shell.Exec(fmt.Sprint(`notify-send -t 0 "Notify" "Connected"`))
 

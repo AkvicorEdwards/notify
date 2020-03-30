@@ -8,22 +8,27 @@ import (
 	"time"
 )
 
-func SendMsg(uid string, msg []byte) {
-	buff := WrapCodeByte(ReqNotify, msg)
-	fmt.Println(uid, now(), "MSG:", buff.String()[2:])
+func SendMsg(uid, key, flag string, code byte, msg []byte) {
+	buff := WrapCodeByte(code, msg)
+	fmt.Printf("%s %s %s:%s", uid, now(), flag, buff.String()[2:])
 	C, ok := ConnMap[uid]
 	if !ok {
+		fmt.Println(" Error User do not exist")
 		return
 	}
-	C.Wch <- buff.Bytes()
+	if C.Key == key {
+		fmt.Println(" OK")
+		C.Wch <- buff.Bytes()
+	}else {
+		fmt.Println(" Error Wrong Key")
+	}
 }
 
 // 测试 定时自动发送数据
-func Work(C *Con) {
+func WorkTest(C *Con) {
 	time.Sleep(3 * time.Second)
 	fmt.Println("Push MSG: hello")
 	C.Wch <- WrapCodeString(ReqMessage, "hello").Bytes()
-
 
 	time.Sleep(20 * time.Second)
 	fmt.Println("Push MSG: world")
@@ -31,7 +36,7 @@ func Work(C *Con) {
 }
 
 // 测试 命令行获取数据并发送
-func TSend(C *Con) {
+func TSend(uid string) {
 	for {
 		msg, err := bufio.NewReader(os.Stdin).ReadString('\n')
 		if err != nil {
@@ -40,10 +45,10 @@ func TSend(C *Con) {
 		}
 		msg = strings.TrimSpace(msg)
 		if msg == "quit" {
-			C.Dch <- true
+			ConnMap[uid].Dch <- true
 			return
 		}
-		C.Wch <- WrapCodeString(ReqMessage, msg).Bytes()
+		ConnMap[uid].Wch <- WrapCodeString(ReqMessage, msg).Bytes()
 	}
 }
 
