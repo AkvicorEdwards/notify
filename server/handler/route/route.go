@@ -3,6 +3,7 @@ package route
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
@@ -17,6 +18,7 @@ type Route struct {
 	BearingAccuracy string `json:"bearing_accuracy"`
 	Latitude string `json:"latitude"`
 	Longitude string `json:"longitude"`
+	AMapCoordinates string `json:"amap_coordinates"`
 	Speed string `json:"speed"`
 	SpeedAccuracy string `json:"speed_accuracy"`
 	TimeSeconds string `json:"time_seconds"`
@@ -40,14 +42,42 @@ func Record(w http.ResponseWriter, r *http.Request) {
 		SpeedAccuracy:       filter(r.FormValue("speed_accuracy")),
 		TimeSeconds:         filter(r.FormValue("time_seconds")),
 	}
+	url := fmt.Sprintf("https://restapi.amap.com/v3/assistant/coordinate/convert?key=%s&locations=%s,%s&coordsys=gps", os.Args[7], Msg.Longitude, Msg.Latitude)
+	resp, err := http.Get(url)
+	if err != nil {
+		Msg.AMapCoordinates = ""
+	}else {
+		s, err := ioutil.ReadAll(resp.Body)
+		_=resp.Body.Close()
+		if err == nil {
+			fmt.Printf(string(s))
+			Msg.AMapCoordinates = string(s)
+		}
+	}
+
+
+	url = fmt.Sprintf("https://restapi.amap.com/v3/geocode/regeo?key=%s&location=%s,%s&poitype=&radius=0&extensions=all&batch=false&roadlevel=0", os.Args[7], Msg.Longitude, Msg.Latitude)
+	resp, err = http.Get(url)
+	aMapLoc := ""
+	if err == nil {
+		s, err := ioutil.ReadAll(resp.Body)
+		_=resp.Body.Close()
+		if err == nil {
+			fmt.Printf(string(s))
+			aMapLoc = ""
+		}
+	}
+
 	data, err := json.Marshal(Msg)
 	if err != nil {
 		fmt.Println(err)
 	}
-	appendToFile(filename(uid), now(), data)
+	appendToFile(filename(uid), now(), aMapLoc, data)
+
+
 }
 
-func appendToFile(file string, time string, str []byte) {
+func appendToFile(file string, time string, loc string, str []byte) {
 
 	pth := path.Dir(file)
 	if !isExist(pth) {
@@ -67,11 +97,15 @@ func appendToFile(file string, time string, str []byte) {
 		_ = f.Close()
 	}()
 
-	_, err = f.WriteString(time)
+	_, err = f.WriteString(time) // time
 	if err != nil {
 		fmt.Println(err)
 	}
-	_, err = f.Write(str)
+	_, err = f.Write(append(str, ' '))  // time data
+	if err != nil {
+		fmt.Println(err)
+	}
+	_, err = f.WriteString(loc) // time data loc
 	if err != nil {
 		fmt.Println(err)
 	}

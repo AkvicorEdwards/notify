@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// [:Web port] [:tcp port] [uid] [cert.pem] [key.pem] [key]
+// [:Web port] [:tcp port] [uid] [cert.pem] [key.pem] [key] [map api key]
 
 func main() {
 	handler.ParsePrefix()
