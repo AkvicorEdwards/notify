@@ -43,20 +43,30 @@ func Record(w http.ResponseWriter, r *http.Request) {
 		TimeSeconds:         filter(r.FormValue("time_seconds")),
 	}
 	url := fmt.Sprintf("https://restapi.amap.com/v3/assistant/coordinate/convert?key=%s&locations=%s,%s&coordsys=gps", os.Args[7], Msg.Longitude, Msg.Latitude)
+	//fmt.Println("url1", url)
 	resp, err := http.Get(url)
+	type aMapS struct {
+		Status string `json:"status"`
+		Info string `json:"info"`
+		Locations string `json:"locations"`
+	}
+
+	aMap := &aMapS{}
+
 	if err != nil {
 		Msg.AMapCoordinates = ""
 	}else {
 		s, err := ioutil.ReadAll(resp.Body)
 		_=resp.Body.Close()
 		if err == nil {
-			fmt.Printf(string(s))
-			Msg.AMapCoordinates = string(s)
+			_=json.Unmarshal(s, aMap)
+			Msg.AMapCoordinates = aMap.Locations
 		}
 	}
 
 
-	url = fmt.Sprintf("https://restapi.amap.com/v3/geocode/regeo?key=%s&location=%s,%s&poitype=&radius=0&extensions=all&batch=false&roadlevel=0", os.Args[7], Msg.Longitude, Msg.Latitude)
+	url = fmt.Sprintf("https://restapi.amap.com/v3/geocode/regeo?key=%s&location=%s&poitype=&radius=0&extensions=all&batch=false&roadlevel=0", os.Args[7], Msg.AMapCoordinates)
+	//fmt.Println("url2", url)
 	resp, err = http.Get(url)
 	aMapLoc := ""
 	if err == nil {
@@ -64,7 +74,7 @@ func Record(w http.ResponseWriter, r *http.Request) {
 		_=resp.Body.Close()
 		if err == nil {
 			fmt.Printf(string(s))
-			aMapLoc = ""
+			aMapLoc = string(s)
 		}
 	}
 
@@ -72,12 +82,11 @@ func Record(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	appendToFile(filename(uid), now(), aMapLoc, data)
-
+	appendToFile(filename(uid), now(), data, aMapLoc)
 
 }
 
-func appendToFile(file string, time string, loc string, str []byte) {
+func appendToFile(file string, time string, str []byte, loc string) {
 
 	pth := path.Dir(file)
 	if !isExist(pth) {
