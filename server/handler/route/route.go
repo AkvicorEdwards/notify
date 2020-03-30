@@ -64,7 +64,6 @@ func Record(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-
 	url = fmt.Sprintf("https://restapi.amap.com/v3/geocode/regeo?key=%s&location=%s&poitype=&radius=0&extensions=all&batch=false&roadlevel=0", os.Args[7], Msg.AMapCoordinates)
 	//fmt.Println("url2", url)
 	resp, err = http.Get(url)
@@ -73,14 +72,14 @@ func Record(w http.ResponseWriter, r *http.Request) {
 		s, err := ioutil.ReadAll(resp.Body)
 		_=resp.Body.Close()
 		if err == nil {
-			fmt.Printf(string(s))
+			//fmt.Printf(string(s))
 			aMapLoc = string(s)
 		}
 	}
 
 	data, err := json.Marshal(Msg)
 	if err != nil {
-		fmt.Println(err)
+		data = make([]byte,0)
 	}
 	appendToFile(filename(uid), now(), data, aMapLoc)
 
