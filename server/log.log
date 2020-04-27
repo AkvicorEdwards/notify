@@ -1,0 +1,70 @@
+Akvicor
+ListenAndServe: :7020 TCP: :7010 2020-04-27 22:13:01 PID: 13774
+2020/04/27 22:13:01 TCP Server is listening [:7010], waiting for client to connect...
+1. Send message to User
+2. Send message to Team
+3. Create User
+4. Create Team
+5. Add Key to User
+6. List User
+7. List Team
+8. List Connection
+2020/04/27 22:13:41 Client connection comes from: 127.0.0.1:33062
+2020/04/27 22:13:42 Client [Akvicor] registered successfully: cid:[1587991920325993953] ip:[127.0.0.1:33062]
+UUID:[Akvicor] CID:[1587991920325993953] Terminal Message:[kk]
+2020/04/27 22:14:47 Client connection comes from: 127.0.0.1:33098
+2020/04/27 22:14:47 UUID:[Akvicor] CID:[1587991920325993953] Error sending data: failed to send. [write tcp 127.0.0.1:7010->127.0.0.1:33062: write: broken pipe]
+2020/04/27 22:14:48 UUID:[Akvicor] CID:[1587991920325993953] Kill Signal Generated
+2020/04/27 22:14:48 UUID:[Akvicor] CID:[1587991920325993953] Connection closed. All threads are terminated
+2020/04/27 22:14:48 UUID:[Akvicor] CID:[1587991920325993953] Deleted
+2020/04/27 22:14:49 Client [Akvicor] registered successfully: cid:[1587991920325993953] ip:[127.0.0.1:33098]
+UUID:[Akvicor] CID:[1587991920325993953] Terminal Message:[kk]
+-------------------------------
+Nickname:[AkvicorEdwards] UUID:[Akvicor] KEY:[123x] ConnectionLimit:[15]
+API KEY:
+  ->Remark:[Web Android] APP:[Notice] ID:[1587991920325993953] APIKey:[oneplus7pro]
+  ->ConnectionLimit:[15] Deadline:[1591591920]
+  ->IPv4 Allow:
+      -[^((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3}$]
+  ->IPv4 Deny:
+  ->IPv6 Allow:
+      -[^([\da-fA-F]{1,4})(:([\da-fA-F]{1,4})){7}$]
+  ->IPv6 Allow:
+-------------------------------
+1. Send message to User
+2. Send message to Team
+3. Create User
+4. Create Team
+5. Add Key to User
+6. List User
+7. List Team
+8. List Connection
+-------------------------------
+NAME:[Notify] ID:[1587568371461653781] KEY:[123f] MemberLimit:[17]
+Members:
+  ->UUID:[Akvicor] Nickname:[AkvicorEdwards]
+Connected Clients:
+-------------------------------
+1. Send message to User
+2. Send message to Team
+3. Create User
+4. Create Team
+5. Add Key to User
+6. List User
+7. List Team
+8. List Connection
+ListenAndServe: :7020 TCP: :7010 2020-04-27 22:21:35 PID: 14874
+2020/04/27 22:21:35 TCP Server is listening [:7010], waiting for client to connect...
+1. Send message to User
+2. Send message to Team
+3. Create User
+4. Create Team
+5. Add Key to User
+6. List User
+7. List Team
+8. List Connection
+2020/04/27 22:22:04 Client connection comes from: 127.0.0.1:33334
+2020/04/27 22:22:31 Client connection comes from: 127.0.0.1:33352
+2020/04/27 22:22:32 Client [Akvicor] registered successfully: cid:[1587991920325993953] ip:[127.0.0.1:33352]
+UUID:[Akvicor] CID:[1587991920325993953] Terminal Message:[kk]
+2020/04/27 22:23:03 ClientID:[1587991920325993953] Level:[1] MSG:[{"app":"10655953501804319091 10655953501804319091","title":"SMS","msg":"【腾讯课堂】您的价值最高1000元课程礼包还未领取，点击 https://url.cn/5dPhb7t 马上免费领取精品课程~ 回T退订"}]

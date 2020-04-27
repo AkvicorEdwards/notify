@@ -1,0 +1,8 @@
+#!/bin/bash
+
+screen_name="notify_server"  
+screen -dmS $screen_name
+
+cmd="./notify config tcp-key oneplus7pro  record-key 123 record-mkey 123 http-cert ./cert/cert.pem http-key ./cert/key.pem mysql-password password 2>&1 | tee -a log.log"
+screen -x -S $screen_name -p 0 -X stuff "$cmd"
+screen -x -S $screen_name -p 0 -X stuff '\n'
