@@ -1,16 +1,25 @@
 package main
 
-
 import (
 	"fmt"
+	"notify/parameter"
+	"notify/parameter/config"
 	"notify/tcp"
-	"os"
-	"time"
 )
 
 // [ip] [port] [uid] [key]
 func main() {
-	fmt.Println("IP:", os.Args[1], "PORT:", os.Args[2], "UID:", os.Args[3], time.Now().Format("2006-01-02 15:04:05"), "PID:", os.Getpid())
-	go tcp.ListenTCP(fmt.Sprintf("%s:%s", os.Args[1], os.Args[2]), os.Args[3], os.Args[4]) // ip port uid
-	select {}
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println("Base recover", err)
+		}
+	}()
+	parameter.AddBasicArgs()
+	config.AddParseModule()
+	config.AddAllParser()
+	parameter.ParseArgs()
+
+	tcp.ListenTCP(config.TCP.Addr, config.TCP.UUID, config.TCP.Key)
+	//go tcp.ListenTCP(config.TCP.Addr, config.TCP.UUID, config.TCP.Key)
+	//select {}
 }
