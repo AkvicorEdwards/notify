@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"notify/encryption"
+	"reflect"
 	"strings"
 	"time"
 )
@@ -102,8 +103,6 @@ func Server(conn net.Conn) {
 		return
 	}
 
-	AddWorker(cli, "server")
-
 	go Terminator(cli)
 	go Sender(cli)
 	go Receiver(cli)
@@ -111,8 +110,8 @@ func Server(conn net.Conn) {
 	go ApiDeadlineTicker(cli)
 
 	select {
-	case <-cli.Worker["server"]:
-		cli.Worker["server"] <- true
+	case <-cli.Worker.Server:
+		cli.Worker.Server <- true
 		return
 	}
 }
@@ -123,11 +122,11 @@ func Sender(cli *Client) {
 			log.Println("Sender recover", err)
 		}
 	}()
-	AddWorker(cli, "sender")
+
 	for {
 		select {
-		case <-cli.Worker["sender"]:
-			cli.Worker["sender"] <- true
+		case <-cli.Worker.Sender:
+			cli.Worker.Sender <- true
 			return
 		case d := <-cli.DataSend:
 			err := cli.Connection.SetWriteDeadline(time.Now().Add(10 * time.Second))
@@ -159,14 +158,13 @@ func Receiver(cli *Client) {
 			log.Println("Receiver recover", err)
 		}
 	}()
-	AddWorker(cli, "receiver")
 
 	dataT := make([]byte, MaxMessageLength)
 	down := false
 	go func() {
 		for {
 			select {
-			case <-cli.Worker["receiver"]:
+			case <-cli.Worker.Receiver:
 				down = true
 				return
 			}
@@ -175,7 +173,7 @@ func Receiver(cli *Client) {
 
 	for {
 		if down {
-			cli.Worker["receiver"] <- true
+			cli.Worker.Receiver <- true
 			return
 		}
 		err := cli.Connection.SetReadDeadline(time.Now().Add(30 * time.Second))
@@ -218,15 +216,14 @@ func Heartbeat(cli *Client) {
 			log.Println("Heartbeat recover", err)
 		}
 	}()
-	AddWorker(cli, "heartbeat")
 
 	for {
 		//log.Printf("UUID:[%v] CID:[%v] Heartbeat 1 prepared",
 		//	cli.UUID, cli.Id)
 		ticker := time.NewTicker(5 * time.Second)
 		select {
-		case <-cli.Worker["heartbeat"]:
-			cli.Worker["heartbeat"] <- true
+		case <-cli.Worker.Heartbeat:
+			cli.Worker.Heartbeat <- true
 			return
 		case <-ticker.C:
 			//log.Printf("UUID:[%v] CID:[%v] Heartbeat 2 Send",
@@ -234,8 +231,8 @@ func Heartbeat(cli *Client) {
 			cli.DataSend <- WrapCode(ReqHeartbeat)
 			beatTicker := time.NewTicker(10 * time.Second)
 			select {
-			case <-cli.Worker["heartbeat"]:
-				cli.Worker["heartbeat"] <- true
+			case <-cli.Worker.Heartbeat:
+				cli.Worker.Heartbeat <- true
 				return
 			case <-beatTicker.C:
 				log.Printf("UUID:[%v] CID:[%v] Heartbeat Failure",
@@ -263,11 +260,11 @@ func ApiDeadlineTicker(cli *Client) {
 		cli.Termination <- true
 		return
 	}
-	AddWorker(cli, "apiDeadlineTicker")
+
 	ApiDeadTicker := time.NewTicker(time.Duration(tk)*time.Second)
 	select {
-	case <-cli.Worker["apiDeadlineTicker"]:
-		cli.Worker["apiDeadlineTicker"] <- true
+	case <-cli.Worker.ApiDeadlineTicker:
+		cli.Worker.ApiDeadlineTicker <- true
 		return
 	case <-ApiDeadTicker.C:
 		cli.DataSend <- WrapDoubleCodeString(ResError, IllegalAPIkey,
@@ -282,12 +279,17 @@ func Terminator(cli *Client) {
 			log.Println("Terminator recover", err)
 		}
 	}()
+
+	var typ reflect.Type
+	var val reflect.Value
 	select {
 	case <-cli.Termination:
 		log.Printf("UUID:[%v] CID:[%v] Kill Signal Generated",
 			cli.UUID, cli.Id)
-		for _, v := range cli.Worker {
-			v <- true
+		typ = reflect.TypeOf(*cli.Worker)
+		val = reflect.ValueOf(*cli.Worker)
+		for k := 0; k < typ.NumField(); k++ {
+			val.Field(k).Interface().(chan bool) <- true
 		}
 		cli.Lock()
 		for _, v := range cli.ConnectedTeam {
@@ -299,18 +301,21 @@ func Terminator(cli *Client) {
 	}
 	closed := 0
 	unclosed := make([]string, 0)
-	for k, v := range cli.Worker {
+
+	for k := 0; k < typ.NumField(); k++ {
 		ticker := time.NewTicker(10 * time.Second)
 		select {
-		case <-v:
+		case <-val.Field(k).Interface().(chan bool):
 			closed++
 			continue
 		case <-ticker.C:
-			unclosed = append(unclosed, k)
+			unclosed = append(unclosed, typ.Field(k).Name)
 			continue
 		}
 	}
-	if closed == len(cli.Worker) {
+
+
+	if closed == typ.NumField() {
 		log.Printf("UUID:[%v] CID:[%v] Connection closed. " +
 			"All threads are terminated", cli.UUID, cli.Id)
 	} else {
@@ -330,10 +335,4 @@ func Terminator(cli *Client) {
 	} else {
 		log.Printf("UUID:[%v] CID:[%v] Delete Failure\n", cli.UUID, cli.Id)
 	}
-}
-
-func AddWorker(cli *Client, worker string) {
-	cli.Lock()
-	cli.Worker[worker] = make(chan bool, 1)
-	cli.Unlock()
 }

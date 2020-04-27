@@ -1,0 +1,7 @@
+zsh: no such file or directory: ./notify
+2020/04/27 22:51:23 2020-04-27 22:51:23 Failed to connect to the server: dial tcp 133.130.120.76:7010: connect: connection refused
+Target
+1. Team
+2. Server
+Terminal:kk
+2020/04/27 23:07:05 serverID {"app":"Akvicor Edwards","title":"Incoming call","msg":"+15159960308"}

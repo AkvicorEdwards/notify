@@ -1,0 +1,8 @@
+#!/bin/bash
+
+screen_name="notify_client"
+screen -dmS $screen_name
+
+cmd="./notify config tcp-addr '133.130.120.76:7010' tcp-key oneplus7pro 2>&1 | tee -a notify.log"
+screen -x -S $screen_name -p 0 -X stuff "$cmd"
+screen -x -S $screen_name -p 0 -X stuff '\n'

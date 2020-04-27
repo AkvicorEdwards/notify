@@ -7,6 +7,7 @@ import (
 	"notify/encryption"
 	"notify/shell"
 	"os"
+	"reflect"
 	"time"
 )
 
@@ -62,12 +63,12 @@ func Server(address string, uid string, key string) {
 		// TODO Server ID
 		cli = NewConnect("serverID", conn)
 		Connections.Store("serverID", cli)
+		go shell.Exec(fmt.Sprintf(`notify-send -t 0 "Notify" `+
+			`"PID:[%d]\nConnected"`, os.Getpid()))
 	default:
 		_ = conn.Close()
 		return
 	}
-
-	AddWorker(cli, "server")
 
 	go Terminator(cli)
 	go Sender(cli)
@@ -76,8 +77,8 @@ func Server(address string, uid string, key string) {
 	go TerminalMessageSender(cli)
 
 	select {
-	case <-cli.Worker["server"]:
-		cli.Worker["server"] <- true
+	case <-cli.Worker.Server:
+		cli.Worker.Server <- true
 	}
 }
 
@@ -88,14 +89,12 @@ func Heartbeat(cli *Connect) {
 		}
 	}()
 
-	AddWorker(cli, "heartbeat")
-
 	for {
 		ticker := time.NewTicker(30 * time.Second)
 		select {
-		case <-cli.Worker["heartbeat"]:
+		case <-cli.Worker.Heartbeat:
 			//log.Println("Heartbeat down")
-			cli.Worker["heartbeat"] <- true
+			cli.Worker.Heartbeat <- true
 			return
 		case <-ticker.C:
 			log.Println("Heartbeat timeout")
@@ -116,12 +115,10 @@ func Sender(cli *Connect) {
 		}
 	}()
 
-	AddWorker(cli, "sender")
-
 	for {
 		select {
-		case <-cli.Worker["sender"]:
-			cli.Worker["sender"] <- true
+		case <-cli.Worker.Sender:
+			cli.Worker.Sender <- true
 			return
 		case d := <-cli.DataSend:
 			err := cli.Connection.SetWriteDeadline(time.Now().Add(10 * time.Second))
@@ -154,14 +151,12 @@ func Receiver(cli *Connect) {
 		}
 	}()
 
-	AddWorker(cli, "receiver")
-
 	dataT := make([]byte, MaxMessageLength)
 	down := false
 	go func() {
 		for {
 			select {
-			case <-cli.Worker["receiver"]:
+			case <-cli.Worker.Receiver:
 				down = true
 				return
 			}
@@ -170,7 +165,7 @@ func Receiver(cli *Connect) {
 
 	for {
 		if down {
-			cli.Worker["receiver"] <- true
+			cli.Worker.Receiver <- true
 			return
 		}
 		err := cli.Connection.SetReadDeadline(time.Now().Add(10 * time.Second))
@@ -206,32 +201,35 @@ func Terminator(cli *Connect) {
 			log.Println("Terminator recover", err)
 		}
 	}()
+	var typ reflect.Type
+	var val reflect.Value
 	select {
 	case <-cli.Termination:
 		log.Println("kill signal generated")
-		for _, v := range cli.Worker {
-			v <- true
+		typ = reflect.TypeOf(*cli.Worker)
+		val = reflect.ValueOf(*cli.Worker)
+		for k := 0; k < typ.NumField(); k++ {
+			val.Field(k).Interface().(chan bool) <- true
 		}
 	}
 
 	//log.Println("kill Signal sent")
 	closed := 0
 	unclosed := make([]string, 0)
-	for k, v := range cli.Worker {
-		//log.Println("kill", k)
+	for k := 0; k < typ.NumField(); k++ {
 		ticker := time.NewTicker(10 * time.Second)
 		select {
-		case <-v:
+		case <-val.Field(k).Interface().(chan bool):
 			closed++
 			continue
 		case <-ticker.C:
-			unclosed = append(unclosed, k)
+			unclosed = append(unclosed, typ.Field(k).Name)
 			continue
 		}
 	}
 
 	_ = cli.Connection.Close()
-	if closed == len(cli.Worker) {
+	if closed == typ.NumField() {
 		log.Printf("SID:[%s] Connection closed. "+
 			"All threads are terminated\n", cli.ServerID)
 	} else {
@@ -245,8 +243,3 @@ func Terminator(cli *Connect) {
 	retry <- true
 }
 
-func AddWorker(cli *Connect, worker string) {
-	cli.Lock()
-	cli.Worker[worker] = make(chan bool, 1)
-	cli.Unlock()
-}

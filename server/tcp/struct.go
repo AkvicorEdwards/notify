@@ -116,9 +116,27 @@ type Client struct {
 	HeartbeatDataReceived chan bool
 	HeartbeatDataSent     chan bool
 	Termination           chan bool
-	Worker                map[string]chan bool
+	Worker                *WorkerStruct
 	ConnectedTeam         map[TeamId]*Team
 	sync.RWMutex
+}
+
+type WorkerStruct struct {
+	Server chan bool
+	Sender chan bool
+	Receiver chan bool
+	Heartbeat chan bool
+	ApiDeadlineTicker chan bool
+}
+
+func NewWorker() *WorkerStruct {
+	return &WorkerStruct{
+		Server:            make(chan bool, 1),
+		Sender:            make(chan bool, 1),
+		Receiver:          make(chan bool, 1),
+		Heartbeat:         make(chan bool, 1),
+		ApiDeadlineTicker: make(chan bool, 1),
+	}
 }
 
 func NewClient(id ClientId, uuid, app, remark string, deadline int64, con net.Conn) *Client {
@@ -134,7 +152,7 @@ func NewClient(id ClientId, uuid, app, remark string, deadline int64, con net.Co
 		HeartbeatDataReceived: make(chan bool, 1),
 		HeartbeatDataSent:     make(chan bool, 1),
 		Termination:           make(chan bool),
-		Worker:                make(map[string]chan bool),
+		Worker:                NewWorker(),
 		ConnectedTeam:         make(map[TeamId]*Team, 0),
 		RWMutex:               sync.RWMutex{},
 	}
